@@ -204,6 +204,28 @@
           <feComposite in="displaced" in2="SourceGraphic" operator="in"/>
         </filter>
 
+        <!--
+          ── BRUSH-TIP FILTER (used on desktop/non-iOS only) ──
+          Applied to a single mask rect per stripe. Displaces the rect's
+          right edge into a jagged bristle silhouette as it sweeps left→right.
+          · type="turbulence" → sharper, more organic bristle shapes than fractalNoise
+          · baseFrequency: 0.006 x (long horizontal waves), 0.38 y (bristle separation)
+          · scale=78: ±39 SVG units of tip displacement
+          NOTE: WebKit on iOS silently fails filter-inside-mask (mask goes fully black).
+          The JS below detects iOS and uses the multi-band fallback instead.
+        -->
+        <filter id="brush-tip"
+                x="-5%" y="-55%"
+                width="115%" height="210%"
+                color-interpolation-filters="linearRGB">
+          <feTurbulence type="turbulence"
+                        baseFrequency="0.006 0.38"
+                        numOctaves="3" seed="42" result="noise"/>
+          <feDisplacementMap in="SourceGraphic" in2="noise"
+                             scale="78"
+                             xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+
       </defs>
 
       <!--
@@ -392,24 +414,32 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════
-     BRUSH-TIP MASK ANIMATION  (cross-browser, no filter inside mask)
+     BRUSH-TIP MASK ANIMATION
 
-     iOS Chrome (WebKit) silently fails when a `filter` attribute is
-     applied to an element inside a <mask> — the mask goes fully black
-     and nothing is ever revealed. Fix: use 14 plain white rects per
-     stripe instead, each covering a horizontal band. Each band's width
-     is offset by a precomputed amount, creating an uneven leading edge
-     that mimics individual bristles without touching SVG filter inside mask.
+     Desktop / non-iOS:
+       Single mask rect per stripe, with the #brush-tip SVG filter applied.
+       The filter's feDisplacementMap makes the rect's right (leading) edge
+       a jagged bristle silhouette as its width grows left→right.
 
-     bandOffsets() uses interfering sine waves to produce a natural-looking
-     bristle-spread pattern. Different stripe indices → different phases →
-     each stripe looks like a distinct brushstroke.
+     iOS (iPhone / iPad):
+       WebKit silently fails when a `filter` attr is on a child of <mask> —
+       the mask goes fully black, all stripes stay invisible, nothing animates.
+       Fallback: 14 plain white band-rects per stripe. Each band's width is
+       staggered by a precomputed sine-wave offset so the leading edge is
+       still uneven and bristle-like, achieved geometrically instead.
+
+     Both paths use the same rAF loop (bands array, just length 1 vs 14).
   ══════════════════════════════════════════════════════════════════ */
+
+  // iOS detection — both Mobile Safari and Chrome on iOS use WebKit's
+  // broken filter-inside-mask behavior.
+  var isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
   var NUM_BANDS = 14;
 
   function bandOffsets(si) {
-    var s = si + 1;
-    var result = [];
+    var s = si + 1, result = [];
     for (var b = 0; b < NUM_BANDS; b++) {
       var t = b / (NUM_BANDS - 1);
       result.push(
@@ -430,10 +460,8 @@
   }
 
   stripes.forEach(function (stripe, i) {
-    var sy   = parseFloat(stripe.getAttribute('y'));
-    var sh   = parseFloat(stripe.getAttribute('height'));
-    var bh   = sh / NUM_BANDS;
-    var offs = bandOffsets(i);
+    var sy = parseFloat(stripe.getAttribute('y'));
+    var sh = parseFloat(stripe.getAttribute('height'));
 
     var maskId = 'bm-' + i;
     var mask   = document.createElementNS(SVG_NS, 'mask');
@@ -441,16 +469,32 @@
     mask.setAttribute('maskUnits', 'userSpaceOnUse');
 
     var bands = [];
-    for (var b = 0; b < NUM_BANDS; b++) {
+
+    if (isIOS) {
+      // ── iOS fallback: 14 band-rects, no filter ──
+      var bh   = sh / NUM_BANDS;
+      var offs = bandOffsets(i);
+      for (var b = 0; b < NUM_BANDS; b++) {
+        var mr = document.createElementNS(SVG_NS, 'rect');
+        mr.setAttribute('x',      '-100');
+        mr.setAttribute('y',       String(sy + b * bh - 1));
+        mr.setAttribute('width',  '0');
+        mr.setAttribute('height',  String(bh + 2));
+        mr.setAttribute('fill',   'white');
+        mask.appendChild(mr);
+        bands.push({ rect: mr, off: offs[b] });
+      }
+    } else {
+      // ── Desktop: single rect with brush-tip filter ──
       var mr = document.createElementNS(SVG_NS, 'rect');
       mr.setAttribute('x',      '-100');
-      mr.setAttribute('y',       String(sy + b * bh - 1));  // -1px overlap
+      mr.setAttribute('y',       String(sy - 50));   // extend beyond stripe top/bottom
       mr.setAttribute('width',  '0');
-      mr.setAttribute('height',  String(bh + 2));            // +2px overlap
+      mr.setAttribute('height',  String(sh + 100));  // to absorb y-displacement
       mr.setAttribute('fill',   'white');
-      // NO filter attribute — avoids the WebKit filter-inside-mask bug
+      mr.setAttribute('filter', 'url(#brush-tip)');
       mask.appendChild(mr);
-      bands.push({ rect: mr, off: offs[b] });
+      bands.push({ rect: mr, off: 0 });
     }
 
     svgDefs.appendChild(mask);
