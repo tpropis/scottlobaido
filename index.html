@@ -12,8 +12,10 @@
     .hero {
       position: relative;
       width: 100vw; height: 100vh;
+      height: 100dvh; /* iOS Chrome: dynamic viewport excludes browser chrome */
       overflow: hidden;
       background: #000;
+      isolation: isolate; /* scope mix-blend-mode to this context */
     }
 
     /* ── FLAG — oversized + tilted for cinematic drama ── */
@@ -90,13 +92,16 @@
     .portrait {
       position: absolute;
       right: 5%; bottom: 0;
-      height: 93vh; max-height: 960px;
+      height: 90vh; max-height: 960px;
       width: auto;
       opacity: 0;
       z-index: 5;
       filter:
         drop-shadow(-35px  0px 55px rgba(0,0,0,0.96))
         drop-shadow( -8px  0px 18px rgba(178,34,52,0.12));
+      /* Fade legs into black — prevents hard clip at bottom on any viewport */
+      -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 88%);
+      mask-image:         linear-gradient(to bottom, black 50%, transparent 88%);
       transition: opacity 2.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -197,35 +202,6 @@
                              xChannelSelector="R" yChannelSelector="G"
                              result="displaced"/>
           <feComposite in="displaced" in2="SourceGraphic" operator="in"/>
-        </filter>
-
-        <!--
-          ── BRUSH-TIP FILTER (applied to animated mask rects) ──
-
-          This is what makes each stripe look painted rather than revealed by a
-          clean clip. The mask rect is white on black. As its width grows left→right,
-          this filter displaces its right edge to be jagged and bristle-like:
-
-          · type="turbulence" (not fractalNoise) → sharper, more organic bristle shapes
-          · baseFrequency: 0.006 x (long horizontal waves = brushstroke character)
-                           0.38  y (high frequency = individual bristle separation at tip)
-          · scale=78: ±39 SVG units of displacement at the tip
-            (on a 1900-wide flag, ±39 units is visible but not cartoonish)
-
-          The right edge of the white mask rect becomes a jagged silhouette,
-          letting the stripe color "leak" ahead of and behind the nominal edge —
-          exactly like a loaded bristle brush dragged across canvas.
-        -->
-        <filter id="brush-tip"
-                x="-5%" y="-55%"
-                width="115%" height="210%"
-                color-interpolation-filters="linearRGB">
-          <feTurbulence type="turbulence"
-                        baseFrequency="0.006 0.38"
-                        numOctaves="3" seed="42" result="noise"/>
-          <feDisplacementMap in="SourceGraphic" in2="noise"
-                             scale="78"
-                             xChannelSelector="R" yChannelSelector="G"/>
         </filter>
 
       </defs>
@@ -416,49 +392,70 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════
-     BRUSH-TIP MASK ANIMATION
+     BRUSH-TIP MASK ANIMATION  (cross-browser, no filter inside mask)
 
-     Each stripe is revealed left→right using an SVG mask whose
-     rect has the #brush-tip filter applied. As the rect's width
-     grows, its right (leading) edge is a jagged bristle silhouette
-     rather than a clean straight line.
+     iOS Chrome (WebKit) silently fails when a `filter` attribute is
+     applied to an element inside a <mask> — the mask goes fully black
+     and nothing is ever revealed. Fix: use 14 plain white rects per
+     stripe instead, each covering a horizontal band. Each band's width
+     is offset by a precomputed amount, creating an uneven leading edge
+     that mimics individual bristles without touching SVG filter inside mask.
 
-     The mask rect is sized larger than the stripe vertically
-     (±50 units top/bottom) so the y-displacement of the brush-tip
-     filter doesn't create gaps at the stripe boundaries.
+     bandOffsets() uses interfering sine waves to produce a natural-looking
+     bristle-spread pattern. Different stripe indices → different phases →
+     each stripe looks like a distinct brushstroke.
   ══════════════════════════════════════════════════════════════════ */
-  var svgDefs   = document.querySelector('#flag defs');
-  var stripes   = [];
-  var maskRects = [];
+  var NUM_BANDS = 14;
+
+  function bandOffsets(si) {
+    var s = si + 1;
+    var result = [];
+    for (var b = 0; b < NUM_BANDS; b++) {
+      var t = b / (NUM_BANDS - 1);
+      result.push(
+        Math.sin(t * Math.PI * 2.3 + s * 1.9) * 20 +
+        Math.sin(t * Math.PI * 5.7 + s * 1.1) * 11 +
+        Math.sin(t * Math.PI * 1.1 + s * 3.4) *  7
+      );
+    }
+    return result;
+  }
+
+  var svgDefs    = document.querySelector('#flag defs');
+  var stripes    = [];
+  var stripeBands = [];  // array of [{rect, off}, …] per stripe
 
   for (var si = 0; si < 13; si++) {
     stripes.push(document.getElementById('s' + si));
   }
 
   stripes.forEach(function (stripe, i) {
-    var sy = parseFloat(stripe.getAttribute('y'));
-    var sh = parseFloat(stripe.getAttribute('height'));
+    var sy   = parseFloat(stripe.getAttribute('y'));
+    var sh   = parseFloat(stripe.getAttribute('height'));
+    var bh   = sh / NUM_BANDS;
+    var offs = bandOffsets(i);
 
     var maskId = 'bm-' + i;
     var mask   = document.createElementNS(SVG_NS, 'mask');
-    mask.setAttribute('id',         maskId);
-    mask.setAttribute('maskUnits',  'userSpaceOnUse');
+    mask.setAttribute('id',        maskId);
+    mask.setAttribute('maskUnits', 'userSpaceOnUse');
 
-    // rect extends 50 units beyond stripe top/bottom to absorb
-    // the y-displacement from the brush-tip filter
-    var mr = document.createElementNS(SVG_NS, 'rect');
-    mr.setAttribute('x',      '-100');          // start well off left edge
-    mr.setAttribute('y',       String(sy - 50));
-    mr.setAttribute('width',  '0');             // animated by rAF loop
-    mr.setAttribute('height',  String(sh + 100));
-    mr.setAttribute('fill',   'white');
-    mr.setAttribute('filter', 'url(#brush-tip)');
+    var bands = [];
+    for (var b = 0; b < NUM_BANDS; b++) {
+      var mr = document.createElementNS(SVG_NS, 'rect');
+      mr.setAttribute('x',      '-100');
+      mr.setAttribute('y',       String(sy + b * bh - 1));  // -1px overlap
+      mr.setAttribute('width',  '0');
+      mr.setAttribute('height',  String(bh + 2));            // +2px overlap
+      mr.setAttribute('fill',   'white');
+      // NO filter attribute — avoids the WebKit filter-inside-mask bug
+      mask.appendChild(mr);
+      bands.push({ rect: mr, off: offs[b] });
+    }
 
-    mask.appendChild(mr);
     svgDefs.appendChild(mask);
-
     stripe.setAttribute('mask', 'url(#' + maskId + ')');
-    maskRects.push(mr);
+    stripeBands.push(bands);
   });
 
   /* ══════════════════════════════════════════════════════════════════
@@ -484,13 +481,13 @@
     var elapsed  = ts - rafT0;
     var needMore = false;
 
-    maskRects.forEach(function (mr, i) {
+    stripeBands.forEach(function (bands, i) {
       var tStart = T_STRIPE_START + i * T_STRIPE_STAGGER;
       var tEnd   = tStart + T_STRIPE_DUR;
 
       if (elapsed >= tEnd) {
-        // Fully painted — push well past right edge so brush tip is gone
-        mr.setAttribute('width', '2100');
+        // Fully painted — all bands past the right edge
+        bands.forEach(function (b) { b.rect.setAttribute('width', '2100'); });
         return;
       }
       if (elapsed < tStart) {
@@ -498,12 +495,16 @@
         return;
       }
 
-      needMore    = true;
-      var t       = (elapsed - tStart) / T_STRIPE_DUR;
-      // Ease-out cubic: starts with momentum, settles gently
-      var eased   = 1 - Math.pow(1 - t, 3);
-      // rect x=-100, so width=2100 puts right edge at x=2000 (past flag right)
-      mr.setAttribute('width', String(eased * 2100));
+      needMore  = true;
+      var t     = (elapsed - tStart) / T_STRIPE_DUR;
+      var eased = 1 - Math.pow(1 - t, 3);  // ease-out cubic
+      var nomW  = eased * 2100;
+
+      // Each band is ahead or behind the nominal edge by its precomputed offset,
+      // creating a stepped bristle-like leading edge across the stripe height.
+      bands.forEach(function (b) {
+        b.rect.setAttribute('width', String(Math.max(0, nomW + b.off)));
+      });
     });
 
     if (needMore) requestAnimationFrame(paintLoop);
