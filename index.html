@@ -184,30 +184,33 @@
 
       <!--
         13 STRIPES — alternating red/cream, starting red.
-        Height per stripe: 1000 / 13 ≈ 76.923
-        All start hidden (clip-path set via JS before first paint).
+        Exact height = 1000/13 = 76.9231...
+        Each stripe gets +2 units of height to overlap the next and
+        prevent hairline gaps caused by the displacement filter.
+        Rendered in order so each stripe covers the overlap above.
       -->
-      <rect id="s0"  x="0" y="0"     width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s1"  x="0" y="76.9"  width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s2"  x="0" y="153.8" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s3"  x="0" y="230.8" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s4"  x="0" y="307.7" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s5"  x="0" y="384.6" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s6"  x="0" y="461.5" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s7"  x="0" y="538.5" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s8"  x="0" y="615.4" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s9"  x="0" y="692.3" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s10" x="0" y="769.2" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s11" x="0" y="846.2" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s12" x="0" y="923.1" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s0"  x="0" y="0"       width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s1"  x="0" y="76.923"  width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s2"  x="0" y="153.846" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s3"  x="0" y="230.769" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s4"  x="0" y="307.692" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s5"  x="0" y="384.615" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s6"  x="0" y="461.538" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s7"  x="0" y="538.462" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s8"  x="0" y="615.385" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s9"  x="0" y="692.308" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s10" x="0" y="769.231" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s11" x="0" y="846.154" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s12" x="0" y="923.077" width="1900" height="76.923" fill="#B22234" filter="url(#tex-r)"/>
 
       <!--
-        CANTON (union) — 7 stripes tall × 2/5 flag wide.
+        CANTON (union) — exactly 7 stripes tall × 2/5 flag wide.
+        7 × (1000/13) = 538.461...   width = 2/5 × 1900 = 760
         Starts fully transparent; fades in after stripes complete.
       -->
       <rect id="canton"
             x="0" y="0"
-            width="760" height="538.5"
+            width="760" height="538.462"
             fill="#3C3B6E"
             opacity="0"/>
 
@@ -266,27 +269,46 @@
 
   /* ─── STAR GENERATION ──────────────────────────────────────────────── */
   //
-  // US flag star positions (official proportions, scaled to 1900×1000 viewBox).
-  //   E = horizontal margin from canton left edge to first star col  = 53.8
-  //   F = horizontal step between star cols                          = 53.8
-  //   G = vertical margin from canton top edge to first star row     = 54.0
-  //   H = vertical step between star rows                            = 54.0
+  // Official US flag star grid (derived from EO 10834 geometry):
   //
-  // 9 rows alternating 6 / 5 stars per row = 50 stars total.
+  //   Canton: 760 wide × 538.462 tall (in our 1900×1000 viewBox)
   //
-  var E = 53.8, F = 53.8, G = 54, H = 54, STAR_R = 13;
+  //   The 50 stars sit on a 12-column × 10-row grid:
+  //     Horizontal grid unit  GH = 760 / 12  = 63.333
+  //     Vertical   grid unit  GV = 538.462 / 10 = 53.846
+  //
+  //   Row 0,2,4,6,8 (5 rows) → 6 stars at x = GH × {1,3,5,7,9,11}
+  //   Row 1,3,5,7   (4 rows) → 5 stars at x = GH × {2,4,6,8,10}
+  //   All rows               → y = GV × (row + 1)
+  //
+  //   Total: 5×6 + 4×5 = 30 + 20 = 50 ✓
+  //
+  var CANTON_W = 760;
+  var CANTON_H = 7 * (1000 / 13);          // 538.4615...
+  var GH       = CANTON_W / 12;            // 63.333...
+  var GV       = CANTON_H / 10;            // 53.846...
+  var STAR_R   = 22;                        // outer-point radius
+
+  // 6-star row x multipliers (odd columns on the 12-col grid)
+  var SIX_X = [1, 3, 5, 7, 9, 11];
+  // 5-star row x multipliers (even columns)
+  var FIVE_X = [2, 4, 6, 8, 10];
 
   function starPath(cx, cy) {
-    var ri = STAR_R * 0.382; // inner radius  (sin18°/sin54° ≈ 0.382)
+    // Builds a filled 5-pointed star polygon.
+    // Outer points every 72° starting at -90° (tip up).
+    // Inner points at +36° offset, radius = R × 0.382 (sin18°/sin54°).
+    var R  = STAR_R;
+    var ri = R * 0.382;
     var d  = '';
     for (var i = 0; i < 5; i++) {
-      var oa  = (i * 72 - 90)  * (Math.PI / 180); // outer point angle
-      var ia  = (i * 72 - 54)  * (Math.PI / 180); // inner point angle (+36°)
-      var ox  = (cx + STAR_R * Math.cos(oa)).toFixed(2);
-      var oy  = (cy + STAR_R * Math.sin(oa)).toFixed(2);
-      var ix  = (cx + ri      * Math.cos(ia)).toFixed(2);
-      var iy  = (cy + ri      * Math.sin(ia)).toFixed(2);
-      d += (i === 0 ? 'M' : 'L') + ox + ',' + oy + 'L' + ix + ',' + iy;
+      var oa = (i * 72 - 90) * (Math.PI / 180);
+      var ia = (i * 72 - 54) * (Math.PI / 180);
+      d += (i === 0 ? 'M' : 'L') +
+           (cx + R  * Math.cos(oa)).toFixed(2) + ',' +
+           (cy + R  * Math.sin(oa)).toFixed(2) + 'L' +
+           (cx + ri * Math.cos(ia)).toFixed(2) + ',' +
+           (cy + ri * Math.sin(ia)).toFixed(2);
     }
     return d + 'Z';
   }
@@ -296,12 +318,11 @@
 
   for (var row = 0; row < 9; row++) {
     var isSixRow = (row % 2 === 0);
-    var count    = isSixRow ? 6 : 5;
-    var xOffset  = isSixRow ? 0 : F / 2;
-    var starY    = G + row * H;
+    var xMults   = isSixRow ? SIX_X : FIVE_X;
+    var starY    = GV * (row + 1);
 
-    for (var col = 0; col < count; col++) {
-      var starX = E + xOffset + col * F;
+    for (var xi = 0; xi < xMults.length; xi++) {
+      var starX = GH * xMults[xi];
       var path  = document.createElementNS(SVG_NS, 'path');
       path.setAttribute('d',       starPath(starX, starY));
       path.setAttribute('fill',    '#FFFFFF');
@@ -310,6 +331,8 @@
       starEls.push(path);
     }
   }
+  // Sanity check — remove in production
+  // console.assert(starEls.length === 50, 'Expected 50 stars, got ' + starEls.length);
 
   /* ─── HIDE STRIPES BEFORE FIRST PAINT ──────────────────────────────── */
   // Setting clip-path synchronously before the browser paints ensures
