@@ -99,9 +99,9 @@
       filter:
         drop-shadow(-35px  0px 55px rgba(0,0,0,0.96))
         drop-shadow( -8px  0px 18px rgba(178,34,52,0.12));
-      /* Fade legs into black — prevents hard clip at bottom on any viewport */
-      -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 88%);
-      mask-image:         linear-gradient(to bottom, black 50%, transparent 88%);
+      /* Very subtle bottom fade — only the last few % so feet dissolve softly */
+      -webkit-mask-image: linear-gradient(to bottom, black 84%, transparent 99%);
+      mask-image:         linear-gradient(to bottom, black 84%, transparent 99%);
       transition: opacity 2.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -468,46 +468,36 @@
     mask.setAttribute('id',        maskId);
     mask.setAttribute('maskUnits', 'userSpaceOnUse');
 
-    var bands = [];
-
-    if (isIOS) {
-      // ── iOS fallback: 14 band-rects, no filter ──
-      var bh   = sh / NUM_BANDS;
-      var offs = bandOffsets(i);
-      for (var b = 0; b < NUM_BANDS; b++) {
-        var mr = document.createElementNS(SVG_NS, 'rect');
-        mr.setAttribute('x',      '-100');
-        mr.setAttribute('y',       String(sy + b * bh - 1));
-        mr.setAttribute('width',  '0');
-        mr.setAttribute('height',  String(bh + 2));
-        mr.setAttribute('fill',   'white');
-        mask.appendChild(mr);
-        bands.push({ rect: mr, off: offs[b] });
-      }
-    } else {
-      // ── Desktop: single rect with brush-tip filter ──
+    if (!isIOS) {
+      // ── Desktop: SVG mask with brush-tip filter ──
       var mr = document.createElementNS(SVG_NS, 'rect');
       mr.setAttribute('x',      '-100');
-      mr.setAttribute('y',       String(sy - 50));   // extend beyond stripe top/bottom
+      mr.setAttribute('y',       String(sy - 50));
       mr.setAttribute('width',  '0');
-      mr.setAttribute('height',  String(sh + 100));  // to absorb y-displacement
+      mr.setAttribute('height',  String(sh + 100));
       mr.setAttribute('fill',   'white');
       mr.setAttribute('filter', 'url(#brush-tip)');
       mask.appendChild(mr);
-      bands.push({ rect: mr, off: 0 });
+      svgDefs.appendChild(mask);
+      stripe.setAttribute('mask', 'url(#' + maskId + ')');
+      stripeBands.push([{ rect: mr, off: 0 }]);
     }
-
-    svgDefs.appendChild(mask);
-    stripe.setAttribute('mask', 'url(#' + maskId + ')');
-    stripeBands.push(bands);
+    // iOS: no mask created — we use CSS clip-path instead (see paint loop)
   });
+
+  // iOS: hide all stripes via CSS clip-path before animation starts
+  if (isIOS) {
+    stripes.forEach(function (stripe) {
+      stripe.style.clipPath = 'inset(0 100% 0 0)';
+    });
+  }
 
   /* ══════════════════════════════════════════════════════════════════
      TIMING  (all in milliseconds)
   ══════════════════════════════════════════════════════════════════ */
   var T_STRIPE_START   = 500;
   var T_STRIPE_STAGGER = 188;
-  var T_STRIPE_DUR     = 840;   // slightly slower = deliberate brushstroke feel
+  var T_STRIPE_DUR     = 840;
   var T_CANTON_DELAY   = T_STRIPE_START + 12 * T_STRIPE_STAGGER + T_STRIPE_DUR + 120;
   var T_CANTON_DUR     = 900;
   var T_STARS_START    = T_CANTON_DELAY + 420;
@@ -516,7 +506,10 @@
   var T_LOGO_DELAY     = T_PORTRAIT_DELAY + 820;
 
   /* ══════════════════════════════════════════════════════════════════
-     RAF PAINT LOOP  — drives all 13 stripe mask animations
+     RAF PAINT LOOP
+     Desktop: drives SVG mask rect widths (brush-tip filter on edge)
+     iOS:     drives CSS clip-path inset() on each stripe rect directly
+              — clip-path is universally supported and needs no SVG mask
   ══════════════════════════════════════════════════════════════════ */
   var rafT0 = null;
 
@@ -525,30 +518,28 @@
     var elapsed  = ts - rafT0;
     var needMore = false;
 
-    stripeBands.forEach(function (bands, i) {
+    stripes.forEach(function (stripe, i) {
       var tStart = T_STRIPE_START + i * T_STRIPE_STAGGER;
       var tEnd   = tStart + T_STRIPE_DUR;
+      var done   = elapsed >= tEnd;
 
-      if (elapsed >= tEnd) {
-        // Fully painted — all bands past the right edge
-        bands.forEach(function (b) { b.rect.setAttribute('width', '2100'); });
-        return;
-      }
-      if (elapsed < tStart) {
-        needMore = true;
-        return;
-      }
+      if (elapsed < tStart) { needMore = true; return; }
 
-      needMore  = true;
-      var t     = (elapsed - tStart) / T_STRIPE_DUR;
-      var eased = 1 - Math.pow(1 - t, 3);  // ease-out cubic
+      var t     = done ? 1 : (elapsed - tStart) / T_STRIPE_DUR;
+      var eased = 1 - Math.pow(1 - t, 3);
       var nomW  = eased * 2100;
 
-      // Each band is ahead or behind the nominal edge by its precomputed offset,
-      // creating a stepped bristle-like leading edge across the stripe height.
-      bands.forEach(function (b) {
-        b.rect.setAttribute('width', String(Math.max(0, nomW + b.off)));
-      });
+      if (isIOS) {
+        // CSS clip-path: inset(top right% bottom left) — clip from right side
+        var rightPct = Math.max(0, 100 - nomW / FLAG_W * 100).toFixed(2);
+        stripe.style.clipPath = done
+          ? 'none'
+          : 'inset(0 ' + rightPct + '% 0 0)';
+      } else {
+        stripeBands[i][0].rect.setAttribute('width', String(nomW));
+      }
+
+      if (!done) needMore = true;
     });
 
     if (needMore) requestAnimationFrame(paintLoop);
