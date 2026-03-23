@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scott LoBaido — American Artist</title>
+  <style>
+    /* ─── RESET ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    /* ─── STAGE ─────────────────────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      width: 100vw; height: 100vh;
+      overflow: hidden;
+      background: #000;
+    }
+
+    /* ─── FLAG ───────────────────────────────────────────────────────────── */
+    /* Slightly oversized + rotated for cinematic drama */
+    .flag-wrap {
+      position: absolute;
+      inset: 0;
+      transform: scale(1.08) rotate(-1.3deg);
+      transform-origin: 54% 50%;
+    }
+    .flag-svg {
+      width: 100%; height: 100%;
+    }
+
+    /* ─── CINEMATIC OVERLAYS ─────────────────────────────────────────────── */
+    /* Vignette: dark edges, open center-right where Scott stands */
+    .vignette {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(
+          ellipse 80% 100% at 58% 50%,
+          transparent 5%,
+          rgba(0,0,0,0.42) 55%,
+          rgba(0,0,0,0.84) 100%
+        ),
+        linear-gradient(
+          to bottom,
+          rgba(0,0,0,0.50) 0%,
+          transparent 22%,
+          transparent 72%,
+          rgba(0,0,0,0.70) 100%
+        );
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* Animated film grain overlay */
+    #grain {
+      position: absolute;
+      inset: 0;
+      width: 100%; height: 100%;
+      opacity: 0;
+      z-index: 8;
+      pointer-events: none;
+      mix-blend-mode: overlay;
+      background-repeat: repeat;
+      background-size: 256px 256px;
+      transition: opacity 2.5s ease;
+      animation: grain-shift 0.13s steps(1) infinite;
+    }
+    @keyframes grain-shift {
+      0%   { background-position:   0px   0px; }
+      14%  { background-position: -35px  48px; }
+      28%  { background-position:  52px -30px; }
+      42%  { background-position: -22px  65px; }
+      57%  { background-position:  45px -48px; }
+      71%  { background-position: -60px  24px; }
+      85%  { background-position:  28px -58px; }
+    }
+
+    /* ─── PORTRAIT ───────────────────────────────────────────────────────── */
+    .portrait {
+      position: absolute;
+      right: 5%;
+      bottom: 0;
+      height: 93vh;
+      max-height: 960px;
+      width: auto;
+      opacity: 0;
+      z-index: 5;
+      /* Strong left-side shadow to root him in the scene; warm edge-light hint */
+      filter:
+        drop-shadow(-35px  0px 55px rgba(0,0,0,0.96))
+        drop-shadow( -8px  0px 18px rgba(178,34,52, 0.12));
+      transition: opacity 2.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ─── LOGO ───────────────────────────────────────────────────────────── */
+    .logo {
+      position: absolute;
+      left: 5%;
+      bottom: 8%;
+      width: clamp(210px, 27vw, 350px);
+      opacity: 0;
+      z-index: 6;
+      filter: drop-shadow(0 0 35px rgba(0,0,0,1));
+      transition: opacity 2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ─── MOBILE ─────────────────────────────────────────────────────────── */
+    @media (max-width: 680px) {
+      .flag-wrap { transform: scale(1.1) rotate(-1.3deg); }
+
+      .portrait {
+        right: 50%;
+        transform: translateX(50%);
+        height: 70vh;
+        bottom: 22vh;
+        filter: drop-shadow(0 0 40px rgba(0,0,0,0.9));
+      }
+      .logo {
+        left: 50%;
+        bottom: 4%;
+        transform: translateX(-50%);
+        width: clamp(180px, 72vw, 300px);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+
+  <!-- ══════════════════════════════════════════════
+       FLAG — all animation driven from script
+  ══════════════════════════════════════════════ -->
+  <div class="flag-wrap">
+    <svg id="flag" class="flag-svg"
+         viewBox="0 0 1900 1000"
+         preserveAspectRatio="xMidYMid slice"
+         xmlns="http://www.w3.org/2000/svg">
+      <defs>
+
+        <!--
+          Brush-texture filter for red stripes.
+          feTurbulence generates fractal noise;
+          feDisplacementMap samples the stripe color at displaced coords,
+          creating ragged horizontal edges (top/bottom of each stripe)
+          that read as brushstroke texture.
+        -->
+        <filter id="tex-r"
+                x="-1%" y="-14%"
+                width="102%" height="128%"
+                color-interpolation-filters="linearRGB">
+          <feTurbulence type="fractalNoise"
+                        baseFrequency="1.15 0.032"
+                        numOctaves="4" seed="5" result="n"/>
+          <feDisplacementMap in="SourceGraphic" in2="n"
+                             scale="10"
+                             xChannelSelector="R" yChannelSelector="G"
+                             result="d"/>
+          <feComposite in="d" in2="SourceGraphic" operator="in"/>
+        </filter>
+
+        <!-- Lighter version for cream/white stripes -->
+        <filter id="tex-w"
+                x="-1%" y="-14%"
+                width="102%" height="128%"
+                color-interpolation-filters="linearRGB">
+          <feTurbulence type="fractalNoise"
+                        baseFrequency="1.15 0.032"
+                        numOctaves="4" seed="11" result="n"/>
+          <feDisplacementMap in="SourceGraphic" in2="n"
+                             scale="5"
+                             xChannelSelector="R" yChannelSelector="G"
+                             result="d"/>
+          <feComposite in="d" in2="SourceGraphic" operator="in"/>
+        </filter>
+
+      </defs>
+
+      <!--
+        13 STRIPES — alternating red/cream, starting red.
+        Height per stripe: 1000 / 13 ≈ 76.923
+        All start hidden (clip-path set via JS before first paint).
+      -->
+      <rect id="s0"  x="0" y="0"     width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s1"  x="0" y="76.9"  width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s2"  x="0" y="153.8" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s3"  x="0" y="230.8" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s4"  x="0" y="307.7" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s5"  x="0" y="384.6" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s6"  x="0" y="461.5" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s7"  x="0" y="538.5" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s8"  x="0" y="615.4" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s9"  x="0" y="692.3" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s10" x="0" y="769.2" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s11" x="0" y="846.2" width="1900" height="77"  fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s12" x="0" y="923.1" width="1900" height="77"  fill="#B22234" filter="url(#tex-r)"/>
+
+      <!--
+        CANTON (union) — 7 stripes tall × 2/5 flag wide.
+        Starts fully transparent; fades in after stripes complete.
+      -->
+      <rect id="canton"
+            x="0" y="0"
+            width="760" height="538.5"
+            fill="#3C3B6E"
+            opacity="0"/>
+
+      <!-- 50 STARS — generated and positioned by script -->
+      <g id="stars"></g>
+
+    </svg>
+  </div>
+
+  <!-- Cinematic overlays -->
+  <div class="vignette"></div>
+  <div id="grain"></div>
+
+  <!-- Scott's portrait (transparent-bg PNG) -->
+  <img class="portrait" id="portrait"
+       src="assets/scott.png"
+       alt="Scott LoBaido" />
+
+  <!-- Logo -->
+  <img class="logo" id="logo"
+       src="assets/logo.png"
+       alt="American Artist Scott LoBaido" />
+
+</div><!-- /.hero -->
+
+
+<script>
+(function () {
+  'use strict';
+
+  /* ─── CONSTANTS ────────────────────────────────────────────────────── */
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /* ─── FILM GRAIN ───────────────────────────────────────────────────── */
+  // Build a random noise tile on an off-screen canvas, convert to data URL,
+  // then apply as a repeating background on #grain for the film-grain look.
+  (function buildGrain() {
+    var SIZE = 256;
+    var c    = document.createElement('canvas');
+    c.width  = SIZE;
+    c.height = SIZE;
+    var ctx  = c.getContext('2d');
+    var img  = ctx.createImageData(SIZE, SIZE);
+    var d    = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var v    = (Math.random() * 255) | 0;
+      d[i]     = v;
+      d[i + 1] = v;
+      d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    document.getElementById('grain').style.backgroundImage =
+      'url(' + c.toDataURL() + ')';
+  })();
+
+  /* ─── STAR GENERATION ──────────────────────────────────────────────── */
+  //
+  // US flag star positions (official proportions, scaled to 1900×1000 viewBox).
+  //   E = horizontal margin from canton left edge to first star col  = 53.8
+  //   F = horizontal step between star cols                          = 53.8
+  //   G = vertical margin from canton top edge to first star row     = 54.0
+  //   H = vertical step between star rows                            = 54.0
+  //
+  // 9 rows alternating 6 / 5 stars per row = 50 stars total.
+  //
+  var E = 53.8, F = 53.8, G = 54, H = 54, STAR_R = 13;
+
+  function starPath(cx, cy) {
+    var ri = STAR_R * 0.382; // inner radius  (sin18°/sin54° ≈ 0.382)
+    var d  = '';
+    for (var i = 0; i < 5; i++) {
+      var oa  = (i * 72 - 90)  * (Math.PI / 180); // outer point angle
+      var ia  = (i * 72 - 54)  * (Math.PI / 180); // inner point angle (+36°)
+      var ox  = (cx + STAR_R * Math.cos(oa)).toFixed(2);
+      var oy  = (cy + STAR_R * Math.sin(oa)).toFixed(2);
+      var ix  = (cx + ri      * Math.cos(ia)).toFixed(2);
+      var iy  = (cy + ri      * Math.sin(ia)).toFixed(2);
+      d += (i === 0 ? 'M' : 'L') + ox + ',' + oy + 'L' + ix + ',' + iy;
+    }
+    return d + 'Z';
+  }
+
+  var starsGroup = document.getElementById('stars');
+  var starEls    = [];
+
+  for (var row = 0; row < 9; row++) {
+    var isSixRow = (row % 2 === 0);
+    var count    = isSixRow ? 6 : 5;
+    var xOffset  = isSixRow ? 0 : F / 2;
+    var starY    = G + row * H;
+
+    for (var col = 0; col < count; col++) {
+      var starX = E + xOffset + col * F;
+      var path  = document.createElementNS(SVG_NS, 'path');
+      path.setAttribute('d',       starPath(starX, starY));
+      path.setAttribute('fill',    '#FFFFFF');
+      path.setAttribute('opacity', '0');
+      starsGroup.appendChild(path);
+      starEls.push(path);
+    }
+  }
+
+  /* ─── HIDE STRIPES BEFORE FIRST PAINT ──────────────────────────────── */
+  // Setting clip-path synchronously before the browser paints ensures
+  // stripes start fully invisible (not flashing their full color for one frame).
+  var stripes = [];
+  for (var si = 0; si < 13; si++) {
+    var s = document.getElementById('s' + si);
+    s.style.clipPath = 'inset(0 100% 0 0)';
+    stripes.push(s);
+  }
+
+  /* ─── TIMING (all values in milliseconds) ───────────────────────────── */
+  var T_STRIPE_START   = 500;   // pause before first stripe begins
+  var T_STRIPE_STAGGER = 188;   // delay between each stripe start
+  var T_STRIPE_DUR     = 730;   // each stripe's reveal duration
+
+  // Canton starts after last stripe finishes + short gap
+  var T_CANTON_DELAY   = T_STRIPE_START + 12 * T_STRIPE_STAGGER + T_STRIPE_DUR + 120;
+  var T_CANTON_DUR     = 900;
+
+  // Stars begin ~400 ms after canton starts (overlap intentional)
+  var T_STARS_START    = T_CANTON_DELAY + 420;
+  var T_STAR_STAGGER   = 42;
+
+  // Portrait fades in after ~10 stars are visible (don't wait for all 50)
+  var T_PORTRAIT_DELAY = T_STARS_START + 350;
+  var T_PORTRAIT_DUR   = 2400; // CSS transition set in stylesheet
+
+  // Logo comes in after portrait is mostly visible
+  var T_LOGO_DELAY     = T_PORTRAIT_DELAY + 820;
+
+  /* ─── ANIMATION SEQUENCE ────────────────────────────────────────────── */
+
+  // 1. STRIPES — clip-path reveals each stripe left→right
+  stripes.forEach(function (s, i) {
+    setTimeout(function () {
+      s.style.transition =
+        'clip-path ' + T_STRIPE_DUR + 'ms cubic-bezier(0.22, 0.61, 0.36, 1)';
+      s.style.clipPath = 'inset(0 0% 0 0)';
+    }, T_STRIPE_START + i * T_STRIPE_STAGGER);
+  });
+
+  // 2. CANTON — fades in
+  setTimeout(function () {
+    var canton = document.getElementById('canton');
+    canton.style.transition = 'opacity ' + T_CANTON_DUR + 'ms ease';
+    canton.style.opacity    = '1';
+  }, T_CANTON_DELAY);
+
+  // 3. STARS — staggered fade-in
+  starEls.forEach(function (star, i) {
+    setTimeout(function () {
+      star.style.transition = 'opacity 500ms ease';
+      star.style.opacity    = '1';
+    }, T_STARS_START + i * T_STAR_STAGGER);
+  });
+
+  // 4. PORTRAIT — fades in
+  setTimeout(function () {
+    document.getElementById('portrait').style.opacity = '1';
+  }, T_PORTRAIT_DELAY);
+
+  // 5. LOGO + grain — fades in last
+  setTimeout(function () {
+    document.getElementById('logo').style.opacity  = '1';
+    document.getElementById('grain').style.opacity = '0.038';
+  }, T_LOGO_DELAY);
+
+})();
+</script>
+
+</body>
+</html>
