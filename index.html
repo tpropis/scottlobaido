@@ -5,16 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scott LoBaido — American Artist</title>
   <style>
-    /* ─── RESET ─────────────────────────────────────────────────────────── */
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      background: #000;
-    }
-
-    /* ─── STAGE ─────────────────────────────────────────────────────────── */
+    /* ── STAGE ── */
     .hero {
       position: relative;
       width: 100vw; height: 100vh;
@@ -22,45 +16,56 @@
       background: #000;
     }
 
-    /* ─── FLAG ───────────────────────────────────────────────────────────── */
-    /* Slightly oversized + rotated for cinematic drama */
+    /* ── FLAG — oversized + tilted for cinematic drama ── */
     .flag-wrap {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       transform: scale(1.08) rotate(-1.3deg);
       transform-origin: 54% 50%;
     }
-    .flag-svg {
-      width: 100%; height: 100%;
+    .flag-svg { width: 100%; height: 100%; }
+
+    /*
+      ── LINEN CANVAS TEXTURE ──
+      Multiplied over the flag so the painted stripes feel like
+      they sit ON physical canvas, not on a screen.
+      mix-blend-mode:multiply means: where the linen is dark the
+      paint looks shadowed; where it's light the paint stays bright.
+      On the black background areas it has no effect (black × anything = black).
+    */
+    #canvas-tex {
+      position: absolute; inset: 0;
+      z-index: 1;
+      mix-blend-mode: multiply;
+      opacity: 0.42;
+      background-repeat: repeat;
+      background-size: 512px 512px;
+      pointer-events: none;
     }
 
-    /* ─── CINEMATIC OVERLAYS ─────────────────────────────────────────────── */
-    /* Vignette: dark edges, open center-right where Scott stands */
+    /* ── CINEMATIC VIGNETTE ── */
     .vignette {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       background:
         radial-gradient(
           ellipse 80% 100% at 58% 50%,
           transparent 5%,
-          rgba(0,0,0,0.42) 55%,
-          rgba(0,0,0,0.84) 100%
+          rgba(0,0,0,0.40) 55%,
+          rgba(0,0,0,0.82) 100%
         ),
         linear-gradient(
           to bottom,
-          rgba(0,0,0,0.50) 0%,
+          rgba(0,0,0,0.48) 0%,
           transparent 22%,
           transparent 72%,
-          rgba(0,0,0,0.70) 100%
+          rgba(0,0,0,0.68) 100%
         );
       z-index: 2;
       pointer-events: none;
     }
 
-    /* Animated film grain overlay */
+    /* ── FILM GRAIN ── */
     #grain {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       width: 100%; height: 100%;
       opacity: 0;
       z-index: 8;
@@ -81,28 +86,24 @@
       85%  { background-position:  28px -58px; }
     }
 
-    /* ─── PORTRAIT ───────────────────────────────────────────────────────── */
+    /* ── PORTRAIT ── */
     .portrait {
       position: absolute;
-      right: 5%;
-      bottom: 0;
-      height: 93vh;
-      max-height: 960px;
+      right: 5%; bottom: 0;
+      height: 93vh; max-height: 960px;
       width: auto;
       opacity: 0;
       z-index: 5;
-      /* Strong left-side shadow to root him in the scene; warm edge-light hint */
       filter:
         drop-shadow(-35px  0px 55px rgba(0,0,0,0.96))
-        drop-shadow( -8px  0px 18px rgba(178,34,52, 0.12));
+        drop-shadow( -8px  0px 18px rgba(178,34,52,0.12));
       transition: opacity 2.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* ─── LOGO ───────────────────────────────────────────────────────────── */
+    /* ── LOGO ── */
     .logo {
       position: absolute;
-      left: 5%;
-      bottom: 8%;
+      left: 5%; bottom: 8%;
       width: clamp(210px, 27vw, 350px);
       opacity: 0;
       z-index: 6;
@@ -110,20 +111,16 @@
       transition: opacity 2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* ─── MOBILE ─────────────────────────────────────────────────────────── */
+    /* ── MOBILE ── */
     @media (max-width: 680px) {
       .flag-wrap { transform: scale(1.1) rotate(-1.3deg); }
-
       .portrait {
-        right: 50%;
-        transform: translateX(50%);
-        height: 70vh;
-        bottom: 22vh;
+        right: 50%; transform: translateX(50%);
+        height: 70vh; bottom: 22vh;
         filter: drop-shadow(0 0 40px rgba(0,0,0,0.9));
       }
       .logo {
-        left: 50%;
-        bottom: 4%;
+        left: 50%; bottom: 4%;
         transform: translateX(-50%);
         width: clamp(180px, 72vw, 300px);
       }
@@ -134,9 +131,12 @@
 
 <div class="hero">
 
-  <!-- ══════════════════════════════════════════════
-       FLAG — all animation driven from script
-  ══════════════════════════════════════════════ -->
+  <!-- ═══════════════════════════════════════════════════════
+       FLAG SVG
+       All animation is driven by the script below.
+       Stripes are revealed via animated SVG masks (not clip-path)
+       so the leading edge can be rough/brush-like.
+  ═══════════════════════════════════════════════════════ -->
   <div class="flag-wrap">
     <svg id="flag" class="flag-svg"
          viewBox="0 0 1900 1000"
@@ -145,74 +145,122 @@
       <defs>
 
         <!--
-          Brush-texture filter for red stripes.
-          feTurbulence generates fractal noise;
-          feDisplacementMap samples the stripe color at displaced coords,
-          creating ragged horizontal edges (top/bottom of each stripe)
-          that read as brushstroke texture.
+          ── PAINTED TEXTURE: RED STRIPES ──
+
+          Filter chain:
+            1. feTurbulence  → fractal noise with long horizontal character
+                               (low x-freq = long brushstrokes, med y-freq = pressure variation)
+            2. feComposite arithmetic → modulates stripe color by noise:
+                               output = src × (k1×noise + k2)
+                               k1=0.38, k2=0.62 → brightness range 62–100%
+                               simulates thick vs thin paint (impasto pressure variation)
+            3. feDisplacementMap → scale=34: ragged, torn edges top+bottom
+                               at up to ±34 SVG units (~44% of stripe height)
+            4. feComposite in → clips displaced result back to original stripe bounds
         -->
         <filter id="tex-r"
-                x="-1%" y="-14%"
-                width="102%" height="128%"
+                x="-2%" y="-48%"
+                width="104%" height="196%"
                 color-interpolation-filters="linearRGB">
           <feTurbulence type="fractalNoise"
-                        baseFrequency="1.15 0.032"
-                        numOctaves="4" seed="5" result="n"/>
-          <feDisplacementMap in="SourceGraphic" in2="n"
-                             scale="10"
+                        baseFrequency="0.007 0.052"
+                        numOctaves="5" seed="3" result="noise"/>
+          <feComposite in="SourceGraphic" in2="noise"
+                       operator="arithmetic"
+                       k1="0.38" k2="0.62" k3="0" k4="0"
+                       result="textured"/>
+          <feDisplacementMap in="textured" in2="noise"
+                             scale="34"
                              xChannelSelector="R" yChannelSelector="G"
-                             result="d"/>
-          <feComposite in="d" in2="SourceGraphic" operator="in"/>
+                             result="displaced"/>
+          <feComposite in="displaced" in2="SourceGraphic" operator="in"/>
         </filter>
 
-        <!-- Lighter version for cream/white stripes -->
+        <!--
+          ── PAINTED TEXTURE: CREAM STRIPES ──
+          Lighter touch — less variation and displacement than the red.
+          Cream paint applied more evenly (thinner brush load).
+        -->
         <filter id="tex-w"
-                x="-1%" y="-14%"
-                width="102%" height="128%"
+                x="-2%" y="-48%"
+                width="104%" height="196%"
                 color-interpolation-filters="linearRGB">
           <feTurbulence type="fractalNoise"
-                        baseFrequency="1.15 0.032"
-                        numOctaves="4" seed="11" result="n"/>
-          <feDisplacementMap in="SourceGraphic" in2="n"
-                             scale="5"
+                        baseFrequency="0.007 0.052"
+                        numOctaves="5" seed="9" result="noise"/>
+          <feComposite in="SourceGraphic" in2="noise"
+                       operator="arithmetic"
+                       k1="0.22" k2="0.78" k3="0" k4="0"
+                       result="textured"/>
+          <feDisplacementMap in="textured" in2="noise"
+                             scale="19"
                              xChannelSelector="R" yChannelSelector="G"
-                             result="d"/>
-          <feComposite in="d" in2="SourceGraphic" operator="in"/>
+                             result="displaced"/>
+          <feComposite in="displaced" in2="SourceGraphic" operator="in"/>
+        </filter>
+
+        <!--
+          ── BRUSH-TIP FILTER (applied to animated mask rects) ──
+
+          This is what makes each stripe look painted rather than revealed by a
+          clean clip. The mask rect is white on black. As its width grows left→right,
+          this filter displaces its right edge to be jagged and bristle-like:
+
+          · type="turbulence" (not fractalNoise) → sharper, more organic bristle shapes
+          · baseFrequency: 0.006 x (long horizontal waves = brushstroke character)
+                           0.38  y (high frequency = individual bristle separation at tip)
+          · scale=78: ±39 SVG units of displacement at the tip
+            (on a 1900-wide flag, ±39 units is visible but not cartoonish)
+
+          The right edge of the white mask rect becomes a jagged silhouette,
+          letting the stripe color "leak" ahead of and behind the nominal edge —
+          exactly like a loaded bristle brush dragged across canvas.
+        -->
+        <filter id="brush-tip"
+                x="-5%" y="-55%"
+                width="115%" height="210%"
+                color-interpolation-filters="linearRGB">
+          <feTurbulence type="turbulence"
+                        baseFrequency="0.006 0.38"
+                        numOctaves="3" seed="42" result="noise"/>
+          <feDisplacementMap in="SourceGraphic" in2="noise"
+                             scale="78"
+                             xChannelSelector="R" yChannelSelector="G"/>
         </filter>
 
       </defs>
 
       <!--
-        13 STRIPES — alternating red/cream, starting red.
-        Exact height = 1000/13 = 76.9231...
-        Each stripe gets +2 units of height to overlap the next and
-        prevent hairline gaps caused by the displacement filter.
-        Rendered in order so each stripe covers the overlap above.
+        ── 13 STRIPES ──
+        Exact y = i × (1000/13). Height = (1000/13) + 2 for overlap
+        to close any hairline gaps between adjacent stripes.
+        The final stripe uses exact height so the flag ends cleanly at y=1000.
+
+        Masks are created and animated by the script.
+        No clip-path is set here.
       -->
-      <rect id="s0"  x="0" y="0"       width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s1"  x="0" y="76.923"  width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s2"  x="0" y="153.846" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s3"  x="0" y="230.769" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s4"  x="0" y="307.692" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s5"  x="0" y="384.615" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s6"  x="0" y="461.538" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s7"  x="0" y="538.462" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s8"  x="0" y="615.385" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s9"  x="0" y="692.308" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
-      <rect id="s10" x="0" y="769.231" width="1900" height="78.924" fill="#B22234" filter="url(#tex-r)"/>
-      <rect id="s11" x="0" y="846.154" width="1900" height="78.924" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s0"  x="0" y="0"       width="1900" height="78.923" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s1"  x="0" y="76.923"  width="1900" height="78.923" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s2"  x="0" y="153.846" width="1900" height="78.923" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s3"  x="0" y="230.769" width="1900" height="78.923" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s4"  x="0" y="307.692" width="1900" height="78.923" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s5"  x="0" y="384.615" width="1900" height="78.923" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s6"  x="0" y="461.538" width="1900" height="78.923" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s7"  x="0" y="538.462" width="1900" height="78.923" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s8"  x="0" y="615.385" width="1900" height="78.923" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s9"  x="0" y="692.308" width="1900" height="78.923" fill="#EDE5CC" filter="url(#tex-w)"/>
+      <rect id="s10" x="0" y="769.231" width="1900" height="78.923" fill="#B22234" filter="url(#tex-r)"/>
+      <rect id="s11" x="0" y="846.154" width="1900" height="78.923" fill="#EDE5CC" filter="url(#tex-w)"/>
       <rect id="s12" x="0" y="923.077" width="1900" height="76.923" fill="#B22234" filter="url(#tex-r)"/>
 
       <!--
-        CANTON (union) — exactly 7 stripes tall × 2/5 flag wide.
-        7 × (1000/13) = 538.461...   width = 2/5 × 1900 = 760
-        Starts fully transparent; fades in after stripes complete.
+        ── CANTON ──
+        Exactly 7 stripes tall (7 × 1000/13 = 538.462) × 2/5 flag wide (760).
+        Starts transparent; fades in after stripes complete.
       -->
       <rect id="canton"
-            x="0" y="0"
-            width="760" height="538.462"
-            fill="#3C3B6E"
-            opacity="0"/>
+            x="0" y="0" width="760" height="538.462"
+            fill="#3C3B6E" opacity="0"/>
 
       <!-- 50 STARS — generated and positioned by script -->
       <g id="stars"></g>
@@ -220,91 +268,128 @@
     </svg>
   </div>
 
-  <!-- Cinematic overlays -->
+  <!-- Linen canvas texture multiplied over the flag -->
+  <div id="canvas-tex"></div>
+
+  <!-- Vignette -->
   <div class="vignette"></div>
+
+  <!-- Film grain -->
   <div id="grain"></div>
 
-  <!-- Scott's portrait (transparent-bg PNG) -->
-  <img class="portrait" id="portrait"
-       src="scott.png"
-       alt="Scott LoBaido" />
+  <!-- Portrait -->
+  <img class="portrait" id="portrait" src="scott.png" alt="Scott LoBaido" />
 
   <!-- Logo -->
-  <img class="logo" id="logo"
-       src="logo.png"
-       alt="American Artist Scott LoBaido" />
+  <img class="logo" id="logo" src="logo.png" alt="American Artist Scott LoBaido" />
 
-</div><!-- /.hero -->
-
+</div>
 
 <script>
 (function () {
   'use strict';
 
-  /* ─── CONSTANTS ────────────────────────────────────────────────────── */
-  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var SVG_NS   = 'http://www.w3.org/2000/svg';
+  var CANTON_W = 760;
+  var CANTON_H = 7 * (1000 / 13);   // 538.4615...
+  var FLAG_W   = 1900;
 
-  /* ─── FILM GRAIN ───────────────────────────────────────────────────── */
-  // Build a random noise tile on an off-screen canvas, convert to data URL,
-  // then apply as a repeating background on #grain for the film-grain look.
+  /* ══════════════════════════════════════════════════════════════════
+     LINEN CANVAS TEXTURE
+     Generates a 512×512 warm-tan linen weave in JS and applies it
+     to #canvas-tex via background-image. The div uses
+     mix-blend-mode:multiply, so this darkens the paint where the
+     canvas threads are shadowed — giving the flag a physical,
+     painted-on-canvas feel rather than a digital flat look.
+  ══════════════════════════════════════════════════════════════════ */
+  (function buildLinen() {
+    var W = 512, H = 512;
+    var c   = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var ctx = c.getContext('2d');
+    var id  = ctx.createImageData(W, H);
+    var d   = id.data;
+
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var i = (y * W + x) * 4;
+
+        // Horizontal linen threads — period ~9px (tightly woven)
+        var horiz = Math.sin(y / 4.5 * Math.PI) * 0.5 + 0.5;
+
+        // Vertical threads — period ~13px (slightly coarser)
+        var vert  = Math.sin(x / 6.5 * Math.PI) * 0.5 + 0.5;
+
+        // Slow large-scale canvas tension undulation
+        var bump  = Math.sin(x / 90 * Math.PI) * Math.cos(y / 70 * Math.PI) * 0.5 + 0.5;
+
+        // Fine random fibre grain
+        var grain = Math.random();
+
+        // Combine — thread pattern dominates
+        var val = horiz * 0.38 + vert * 0.22 + bump * 0.22 + grain * 0.18;
+
+        // Warm tan palette: R 138–220, G 118–196, B 88–156
+        d[i]     = Math.min(255, (138 + val * 82)  | 0);
+        d[i + 1] = Math.min(255, (118 + val * 78)  | 0);
+        d[i + 2] = Math.min(255, ( 88 + val * 68)  | 0);
+        d[i + 3] = 255;
+      }
+    }
+
+    ctx.putImageData(id, 0, 0);
+    document.getElementById('canvas-tex').style.backgroundImage =
+      'url(' + c.toDataURL() + ')';
+  })();
+
+  /* ══════════════════════════════════════════════════════════════════
+     FILM GRAIN
+  ══════════════════════════════════════════════════════════════════ */
   (function buildGrain() {
     var SIZE = 256;
-    var c    = document.createElement('canvas');
-    c.width  = SIZE;
-    c.height = SIZE;
-    var ctx  = c.getContext('2d');
-    var img  = ctx.createImageData(SIZE, SIZE);
-    var d    = img.data;
+    var c   = document.createElement('canvas');
+    c.width = c.height = SIZE;
+    var ctx = c.getContext('2d');
+    var id  = ctx.createImageData(SIZE, SIZE);
+    var d   = id.data;
     for (var i = 0; i < d.length; i += 4) {
-      var v    = (Math.random() * 255) | 0;
-      d[i]     = v;
-      d[i + 1] = v;
-      d[i + 2] = v;
-      d[i + 3] = 255;
+      var v = (Math.random() * 255) | 0;
+      d[i] = d[i+1] = d[i+2] = v;
+      d[i+3] = 255;
     }
-    ctx.putImageData(img, 0, 0);
+    ctx.putImageData(id, 0, 0);
     document.getElementById('grain').style.backgroundImage =
       'url(' + c.toDataURL() + ')';
   })();
 
-  /* ─── STAR GENERATION ──────────────────────────────────────────────── */
-  //
-  // Official US flag star grid (derived from EO 10834 geometry):
-  //
-  //   Canton: 760 wide × 538.462 tall (in our 1900×1000 viewBox)
-  //
-  //   The 50 stars sit on a 12-column × 10-row grid:
-  //     Horizontal grid unit  GH = 760 / 12  = 63.333
-  //     Vertical   grid unit  GV = 538.462 / 10 = 53.846
-  //
-  //   Row 0,2,4,6,8 (5 rows) → 6 stars at x = GH × {1,3,5,7,9,11}
-  //   Row 1,3,5,7   (4 rows) → 5 stars at x = GH × {2,4,6,8,10}
-  //   All rows               → y = GV × (row + 1)
-  //
-  //   Total: 5×6 + 4×5 = 30 + 20 = 50 ✓
-  //
-  var CANTON_W = 760;
-  var CANTON_H = 7 * (1000 / 13);          // 538.4615...
-  var GH       = CANTON_W / 12;            // 63.333...
-  var GV       = CANTON_H / 10;            // 53.846...
-  var STAR_R   = 22;                        // outer-point radius
+  /* ══════════════════════════════════════════════════════════════════
+     STAR GENERATION  (exactly 50 stars)
 
-  // 6-star row x multipliers (odd columns on the 12-col grid)
-  var SIX_X = [1, 3, 5, 7, 9, 11];
-  // 5-star row x multipliers (even columns)
+     The canton uses a 12-col × 10-row grid:
+       GH = canton_width  / 12 = 63.333  (horizontal unit)
+       GV = canton_height / 10 = 53.846  (vertical unit)
+
+     6-star rows (0,2,4,6,8) → x = GH × {1,3,5,7,9,11}   (odd cols)
+     5-star rows (1,3,5,7)   → x = GH × {2,4,6,8,10}      (even cols)
+     All rows                → y = GV × (row + 1)
+
+     5×6 + 4×5 = 30 + 20 = 50 ✓
+  ══════════════════════════════════════════════════════════════════ */
+  var GH     = CANTON_W / 12;
+  var GV     = CANTON_H / 10;
+  var STAR_R = 22;
+  var SIX_X  = [1, 3, 5, 7, 9, 11];
   var FIVE_X = [2, 4, 6, 8, 10];
 
   function starPath(cx, cy) {
-    // Builds a filled 5-pointed star polygon.
-    // Outer points every 72° starting at -90° (tip up).
-    // Inner points at +36° offset, radius = R × 0.382 (sin18°/sin54°).
-    var R  = STAR_R;
-    var ri = R * 0.382;
-    var d  = '';
-    for (var i = 0; i < 5; i++) {
-      var oa = (i * 72 - 90) * (Math.PI / 180);
-      var ia = (i * 72 - 54) * (Math.PI / 180);
-      d += (i === 0 ? 'M' : 'L') +
+    // Filled 5-pointed star: outer radius R, inner radius R×0.382 (sin18°/sin54°)
+    // 5 outer points at -90°, -18°, 54°, 126°, 198°
+    // 5 inner points at -54°,  18°, 90°, 162°, 234°
+    var R = STAR_R, ri = R * 0.382, d = '';
+    for (var k = 0; k < 5; k++) {
+      var oa = (k * 72 - 90) * (Math.PI / 180);
+      var ia = (k * 72 - 54) * (Math.PI / 180);
+      d += (k === 0 ? 'M' : 'L') +
            (cx + R  * Math.cos(oa)).toFixed(2) + ',' +
            (cy + R  * Math.sin(oa)).toFixed(2) + 'L' +
            (cx + ri * Math.cos(ia)).toFixed(2) + ',' +
@@ -317,85 +402,139 @@
   var starEls    = [];
 
   for (var row = 0; row < 9; row++) {
-    var isSixRow = (row % 2 === 0);
-    var xMults   = isSixRow ? SIX_X : FIVE_X;
-    var starY    = GV * (row + 1);
-
+    var isSix  = (row % 2 === 0);
+    var xMults = isSix ? SIX_X : FIVE_X;
+    var starY  = GV * (row + 1);
     for (var xi = 0; xi < xMults.length; xi++) {
-      var starX = GH * xMults[xi];
-      var path  = document.createElementNS(SVG_NS, 'path');
-      path.setAttribute('d',       starPath(starX, starY));
-      path.setAttribute('fill',    '#FFFFFF');
-      path.setAttribute('opacity', '0');
-      starsGroup.appendChild(path);
-      starEls.push(path);
+      var p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d',       starPath(GH * xMults[xi], starY));
+      p.setAttribute('fill',    '#FFFFFF');
+      p.setAttribute('opacity', '0');
+      starsGroup.appendChild(p);
+      starEls.push(p);
     }
   }
-  // Sanity check — remove in production
-  // console.assert(starEls.length === 50, 'Expected 50 stars, got ' + starEls.length);
 
-  /* ─── HIDE STRIPES BEFORE FIRST PAINT ──────────────────────────────── */
-  // Setting clip-path synchronously before the browser paints ensures
-  // stripes start fully invisible (not flashing their full color for one frame).
-  var stripes = [];
+  /* ══════════════════════════════════════════════════════════════════
+     BRUSH-TIP MASK ANIMATION
+
+     Each stripe is revealed left→right using an SVG mask whose
+     rect has the #brush-tip filter applied. As the rect's width
+     grows, its right (leading) edge is a jagged bristle silhouette
+     rather than a clean straight line.
+
+     The mask rect is sized larger than the stripe vertically
+     (±50 units top/bottom) so the y-displacement of the brush-tip
+     filter doesn't create gaps at the stripe boundaries.
+  ══════════════════════════════════════════════════════════════════ */
+  var svgDefs   = document.querySelector('#flag defs');
+  var stripes   = [];
+  var maskRects = [];
+
   for (var si = 0; si < 13; si++) {
-    var s = document.getElementById('s' + si);
-    s.style.clipPath = 'inset(0 100% 0 0)';
-    stripes.push(s);
+    stripes.push(document.getElementById('s' + si));
   }
 
-  /* ─── TIMING (all values in milliseconds) ───────────────────────────── */
-  var T_STRIPE_START   = 500;   // pause before first stripe begins
-  var T_STRIPE_STAGGER = 188;   // delay between each stripe start
-  var T_STRIPE_DUR     = 730;   // each stripe's reveal duration
+  stripes.forEach(function (stripe, i) {
+    var sy = parseFloat(stripe.getAttribute('y'));
+    var sh = parseFloat(stripe.getAttribute('height'));
 
-  // Canton starts after last stripe finishes + short gap
-  var T_CANTON_DELAY   = T_STRIPE_START + 12 * T_STRIPE_STAGGER + T_STRIPE_DUR + 120;
-  var T_CANTON_DUR     = 900;
+    var maskId = 'bm-' + i;
+    var mask   = document.createElementNS(SVG_NS, 'mask');
+    mask.setAttribute('id',         maskId);
+    mask.setAttribute('maskUnits',  'userSpaceOnUse');
 
-  // Stars begin ~400 ms after canton starts (overlap intentional)
-  var T_STARS_START    = T_CANTON_DELAY + 420;
-  var T_STAR_STAGGER   = 42;
+    // rect extends 50 units beyond stripe top/bottom to absorb
+    // the y-displacement from the brush-tip filter
+    var mr = document.createElementNS(SVG_NS, 'rect');
+    mr.setAttribute('x',      '-100');          // start well off left edge
+    mr.setAttribute('y',       String(sy - 50));
+    mr.setAttribute('width',  '0');             // animated by rAF loop
+    mr.setAttribute('height',  String(sh + 100));
+    mr.setAttribute('fill',   'white');
+    mr.setAttribute('filter', 'url(#brush-tip)');
 
-  // Portrait fades in after ~10 stars are visible (don't wait for all 50)
-  var T_PORTRAIT_DELAY = T_STARS_START + 350;
-  var T_PORTRAIT_DUR   = 2400; // CSS transition set in stylesheet
+    mask.appendChild(mr);
+    svgDefs.appendChild(mask);
 
-  // Logo comes in after portrait is mostly visible
-  var T_LOGO_DELAY     = T_PORTRAIT_DELAY + 820;
-
-  /* ─── ANIMATION SEQUENCE ────────────────────────────────────────────── */
-
-  // 1. STRIPES — clip-path reveals each stripe left→right
-  stripes.forEach(function (s, i) {
-    setTimeout(function () {
-      s.style.transition =
-        'clip-path ' + T_STRIPE_DUR + 'ms cubic-bezier(0.22, 0.61, 0.36, 1)';
-      s.style.clipPath = 'inset(0 0% 0 0)';
-    }, T_STRIPE_START + i * T_STRIPE_STAGGER);
+    stripe.setAttribute('mask', 'url(#' + maskId + ')');
+    maskRects.push(mr);
   });
 
-  // 2. CANTON — fades in
+  /* ══════════════════════════════════════════════════════════════════
+     TIMING  (all in milliseconds)
+  ══════════════════════════════════════════════════════════════════ */
+  var T_STRIPE_START   = 500;
+  var T_STRIPE_STAGGER = 188;
+  var T_STRIPE_DUR     = 840;   // slightly slower = deliberate brushstroke feel
+  var T_CANTON_DELAY   = T_STRIPE_START + 12 * T_STRIPE_STAGGER + T_STRIPE_DUR + 120;
+  var T_CANTON_DUR     = 900;
+  var T_STARS_START    = T_CANTON_DELAY + 420;
+  var T_STAR_STAGGER   = 42;
+  var T_PORTRAIT_DELAY = T_STARS_START  + 350;
+  var T_LOGO_DELAY     = T_PORTRAIT_DELAY + 820;
+
+  /* ══════════════════════════════════════════════════════════════════
+     RAF PAINT LOOP  — drives all 13 stripe mask animations
+  ══════════════════════════════════════════════════════════════════ */
+  var rafT0 = null;
+
+  function paintLoop(ts) {
+    if (!rafT0) rafT0 = ts;
+    var elapsed  = ts - rafT0;
+    var needMore = false;
+
+    maskRects.forEach(function (mr, i) {
+      var tStart = T_STRIPE_START + i * T_STRIPE_STAGGER;
+      var tEnd   = tStart + T_STRIPE_DUR;
+
+      if (elapsed >= tEnd) {
+        // Fully painted — push well past right edge so brush tip is gone
+        mr.setAttribute('width', '2100');
+        return;
+      }
+      if (elapsed < tStart) {
+        needMore = true;
+        return;
+      }
+
+      needMore    = true;
+      var t       = (elapsed - tStart) / T_STRIPE_DUR;
+      // Ease-out cubic: starts with momentum, settles gently
+      var eased   = 1 - Math.pow(1 - t, 3);
+      // rect x=-100, so width=2100 puts right edge at x=2000 (past flag right)
+      mr.setAttribute('width', String(eased * 2100));
+    });
+
+    if (needMore) requestAnimationFrame(paintLoop);
+  }
+
+  requestAnimationFrame(paintLoop);
+
+  /* ══════════════════════════════════════════════════════════════════
+     REMAINING SEQUENCE  (canton → stars → portrait → logo + grain)
+  ══════════════════════════════════════════════════════════════════ */
+  // Canton
   setTimeout(function () {
     var canton = document.getElementById('canton');
     canton.style.transition = 'opacity ' + T_CANTON_DUR + 'ms ease';
     canton.style.opacity    = '1';
   }, T_CANTON_DELAY);
 
-  // 3. STARS — staggered fade-in
+  // Stars — staggered fade-in
   starEls.forEach(function (star, i) {
     setTimeout(function () {
-      star.style.transition = 'opacity 500ms ease';
+      star.style.transition = 'opacity 480ms ease';
       star.style.opacity    = '1';
     }, T_STARS_START + i * T_STAR_STAGGER);
   });
 
-  // 4. PORTRAIT — fades in
+  // Portrait
   setTimeout(function () {
     document.getElementById('portrait').style.opacity = '1';
   }, T_PORTRAIT_DELAY);
 
-  // 5. LOGO + grain — fades in last
+  // Logo + grain
   setTimeout(function () {
     document.getElementById('logo').style.opacity  = '1';
     document.getElementById('grain').style.opacity = '0.038';
